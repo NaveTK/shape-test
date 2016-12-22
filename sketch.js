@@ -5,7 +5,7 @@ function setup() {
   var total = random(10, 15);
   for (var i = 0; i < total; i++) {
     var angle = map(i, 0, total, 0, TWO_PI);
-    var r = random(120, 160);
+    var r = random(80, 120);
     vertices.push(createVector(r * cos(angle), r * sin(angle)));
   }
   this.shapes.push(new Shape(vertices));
@@ -16,7 +16,7 @@ function setup() {
   
   vertices = [];
   for (var i = 0; i < TWO_PI; i += TWO_PI / 10) {
-    var r = 20 + random(10);
+    var r = 30 + random(10);
     vertices.push(createVector(r * cos(i), r * sin(i)));
   }
   this.stampShape = new Shape(vertices);

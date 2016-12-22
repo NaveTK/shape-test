@@ -64,6 +64,15 @@ function Shape(vertices) {
     return abs(area / 2);
   }
   
+  this.perimeter = function() {
+    var per = 0;
+    for (var i = 0, j = this.vertices.length - 1; i < this.vertices.length; j = i++) {
+      var vIJ = p5.Vector.sub(this.vertices[j], this.vertices[i]);
+      per += vIJ.mag();
+    }
+    return per;
+  }
+  
   //checks if the shape contains a specific point
   this.contains = function(pos) {
     var c = false;
@@ -127,12 +136,22 @@ function Shape(vertices) {
     }
     
     if(splitIntersections.length > 1){
+      var intersectionedge = p5.Vector.sub(splitIntersections[1], splitIntersections[0]);
+      var crackVertice1 = p5.Vector.add(splitIntersections[0], p5.Vector.div(intersectionedge, 3).rotate(random(-PI/5, PI/5)));
+      var crackVertice2 = p5.Vector.add(splitIntersections[1], p5.Vector.div(intersectionedge, -3).rotate(random(-PI/5, PI/5)));
+      
       var newVertices1 = [];
       newVertices1.push(splitIntersections[0].copy());
       for (i = (indList[0] + 1) % this.vertices.length; i != (indList[1] + 1) % this.vertices.length; i = (i + 1) % this.vertices.length) {
         newVertices1.push(this.vertices[i]);
       }
       newVertices1.push(splitIntersections[1].copy());
+      if(this.contains(crackVertice2)){
+        newVertices1.push(crackVertice2.copy());
+      }
+      if(this.contains(crackVertice1)){
+        newVertices1.push(crackVertice1.copy());
+      }
       
       var newVertices2 = [];
       newVertices2.push(splitIntersections[1].copy());
@@ -140,6 +159,12 @@ function Shape(vertices) {
         newVertices2.push(this.vertices[i]);
       }
       newVertices2.push(splitIntersections[0].copy());
+      if(this.contains(crackVertice1)){
+        newVertices2.push(crackVertice1.copy());
+      }
+      if(this.contains(crackVertice2)){
+        newVertices2.push(crackVertice2.copy());
+      }
       
       return [new Shape(newVertices1), new Shape(newVertices2)];
     }
@@ -333,14 +358,14 @@ function Shape(vertices) {
 }
 
 Shape.makeAsteroidSized = function(shapes) {
-  for(var i = 0; i < shapes[0].length; i++) {
+  for (var i = 0; i < shapes[0].length; i++) {
     var area = shapes[0][i].area();
     var r = shapes[0][i].radius();
-    var error = abs((PI - area / (r * r)) / PI);
-    if(area < 800) {
+    var error = area / (PI * r * r);
+    if(area < 750) {
       shapes[1].push(shapes[0].splice(i--, 1)[0]);
     }
-    else if (error > 0.8) {
+    else if (error < 0.2) {
       var newShapes = shapes[0][i].splitAtWeakestPoint();
       shapes[0] = shapes[0].concat(newShapes);
       shapes[0].splice(i--, 1);
