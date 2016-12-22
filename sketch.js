@@ -5,7 +5,7 @@ function setup() {
   var total = random(10, 15);
   for (var i = 0; i < total; i++) {
     var angle = map(i, 0, total, 0, TWO_PI);
-    var r = random(60, 80);
+    var r = random(120, 160);
     vertices.push(createVector(r * cos(angle), r * sin(angle)));
   }
   this.shapes.push(new Shape(vertices));
@@ -85,11 +85,16 @@ function mouseReleased() {
       var impact = this.intersectionPoints[0].copy().rotate(this.heading);
       impact.add(createVector(windowWidth/2, windowHeight/2));
       var newShapes = this.shapes[0].sub(createVector(windowWidth/2, windowHeight/2), this.heading, impact, this.stampHeading, this.stampShape);
-      this.shapes.splice(0, 1);
-      if(newShapes[0].length == 1) {
-        newShapes[0] = newShapes[0][0].splitAtWeakestPoint();
-      }
+      
       newShapes = Shape.makeAsteroidSized(newShapes);
+      
+      this.shapes.splice(0, 1);
+      
+      while(newShapes[0].length == 1) {
+        newShapes[0] = newShapes[0][0].splitAtWeakestPoint();
+        newShapes = Shape.makeAsteroidSized(newShapes);
+      }
+      
       for(j = 0; j < newShapes[0].length; j++) {
         this.shapes.push(newShapes[0][j]);
       }
