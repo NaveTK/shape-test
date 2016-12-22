@@ -32,6 +32,29 @@ function Shape(vertices) {
     return glob_vertices;
   }
   
+  this.trueCenterpoint = function() {
+    var px = 0, py = 0;
+    for( var i = 0; i < this.vertices.length; i++) {
+      px += (this.vertices[i].x + this.vertices[(i+1)%this.vertices.length].x) * cross(this.vertices[i], this.vertices[(i+1)%this.vertices.length]);
+      py += (this.vertices[i].y + this.vertices[(i+1)%this.vertices.length].y) * cross(this.vertices[i], this.vertices[(i+1)%this.vertices.length]);
+    }
+    px /= 6 * this.area();
+    py /= 6 * this.area();
+    return new p5.Vector(px, py);
+  }
+  
+  this.radius = function() {
+    var center = this.trueCenterpoint();
+    var max_r = -1;
+    for( var i = 0; i < this.vertices.length; i++) {
+      var dist_ = dist(center.x, center.y, this.vertices[i].x, this.vertices[i].y);
+      if(dist_ > max_r) {
+        max_r = dist_;
+      }
+    }
+    return max_r;
+  }
+  
   //calculates the area within a shape
   this.area = function() {
     var area = 0;
@@ -52,7 +75,82 @@ function Shape(vertices) {
     return c;
   }
   
+  this.intersections = function(pos, angle, indlist) {
+    if (indlist === undefined) {
+      indlist = [];
+    }
+    intersections = [];
+    for (var i = 0; i < this.vertices.length; i++) {
+      if(lineIntersect2(pos, angle, this.vertices[i], this.vertices[(i+1)%this.vertices.length])) {
+        intersections.push(lineIntersectionPoint(pos, p5.Vector.add(pos, p5.Vector.fromAngle(angle)), this.vertices[i], this.vertices[(i+1)%this.vertices.length]));
+        indlist.push(i);
+      }
+    }
+    //sorting
+    for (var n = intersections.length; n > 1; n--){
+      for (i=0; i < n-1; i++){
+        if (dist(intersections[i].x, intersections[i].y, pos.x, pos.y) > dist(intersections[i+1].x, intersections[i+1].y, pos.x, pos.y)){
+          var temp = intersections[i];
+          intersections[i] = intersections[i+1];
+          intersections[i+1] = temp;
+          
+          var temp2 = indlist[i];
+          indlist[i] = indlist[i+1];
+          indlist[i+1] = temp2;
+        }
+      }
+    }
+    return intersections;
+  }
+  
+  this.splitAtWeakestPoint = function() {
+    var weakestAngle;
+    var intersectiondist = -1;
+    var center = this.trueCenterpoint();
+    var indList = [];
+    var splitIntersections = [];
+    for( angle = random(PI/15); angle < TWO_PI; angle += PI/15) {
+      var list = [];
+      var intersections = this.intersections(center, angle, list);
+      if(intersections.length >= 2) {
+        var dist_ = 0;
+        for(var i = 0; i < intersections.length; i++){
+          dist_ += dist(intersections[i].x, intersections[i].y, center.x, center.y);
+        }
+        if (intersectiondist == -1 || dist_ < intersectiondist) {
+          intersectiondist = dist_;
+          weakestAngle = angle;
+          indList = list;
+          splitIntersections = intersections;
+        }
+      }
+    }
+    
+    if(splitIntersections.length > 1){
+      var newVertices1 = [];
+      newVertices1.push(splitIntersections[0].copy());
+      for (i = (indList[0] + 1) % this.vertices.length; i != (indList[1] + 1) % this.vertices.length; i = (i + 1) % this.vertices.length) {
+        newVertices1.push(this.vertices[i]);
+      }
+      newVertices1.push(splitIntersections[1].copy());
+      
+      var newVertices2 = [];
+      newVertices2.push(splitIntersections[1].copy());
+      for (i = (indList[1] + 1) % this.vertices.length; i != (indList[0] + 1) % this.vertices.length; i = (i + 1) % this.vertices.length) {
+        newVertices2.push(this.vertices[i]);
+      }
+      newVertices2.push(splitIntersections[0].copy());
+      
+      return [new Shape(newVertices1), new Shape(newVertices2)];
+    }
+    else {
+      return [this];
+    }
+  }
+  
   this.sub = function(pos1, heading1, pos2, heading2, shape) {
+    debris = [];
+    
     intersections = [];
     stencilVertices = shape.globalVertices(pos2, heading2);
     for(var i = 0; i < stencilVertices.length; i++) {
@@ -73,11 +171,19 @@ function Shape(vertices) {
       }
     }
     
+    var d = [];
+    if(intersections.length > 1) {
+      d.push(intersections[1].copy());
+    }
     for( i = 0; i < this.vertices.length; i++) {
       if(Shape.contains(stencilVertices, this.vertices[i]) && intersections.indexOf(this.vertices[i]) === -1){
-        this.vertices.splice(i--, 1);
+        d.push(this.vertices.splice(i--, 1)[0]);
       }
     }
+    if(intersections.length > 1) {
+      d.push(intersections[0].copy());
+    }
+    debris.push(new Shape(d));
     
     for( i = 0; i < this.vertices.length; i++) {
       if (intersections.indexOf(this.vertices[i]) !== -1 && intersections.indexOf(this.vertices[(i+1)%this.vertices.length]) !== -1) {
@@ -115,7 +221,7 @@ function Shape(vertices) {
     }
     
     if(intersections.length < 1){
-      return [];
+      return [[this], debris];
     }
     
     for ( i = 0; i < addTo.length; i++) {
@@ -162,11 +268,14 @@ function Shape(vertices) {
     }
     
     if(outcomePolygons.length > 0){
-      this.vertices = outcomePolygons.shift();
-      return outcomePolygons;
+      var shapes = [];
+      for(i = 0; i < outcomePolygons.length; i++) {
+        shapes.push(new Shape(outcomePolygons[i]));
+      }
+      return [shapes, debris];
     }
     else {
-      return [];
+      return [[this], debris];
     }
   }
 
@@ -177,11 +286,6 @@ function Shape(vertices) {
       beginShape();
         for (var i = 0; i < this.vertices.length; i++) {
           vertex(this.vertices[i].x, this.vertices[i].y);
-          strokeWeight(4);
-          stroke(0, 255, 255);
-          point(this.vertices[i].x, this.vertices[i].y);
-          strokeWeight(1);
-          stroke(255);
         }
       endShape(CLOSE);
 
@@ -226,7 +330,23 @@ function Shape(vertices) {
     return true;
 
   }
-  
+}
+
+Shape.makeAsteroidSized = function(shapes) {
+  for(var i = 0; i < shapes[0].length; i++) {
+    var area = shapes[0][i].area();
+    var r = shapes[0][i].radius();
+    var error = abs((PI - area / (r * r)) / PI);
+    if(area < 800) {
+      shapes[1].push(shapes[0].splice(i--, 1)[0]);
+    }
+    else if (error > 0.8) {
+      var newShapes = shapes[0][i].splitAtWeakestPoint();
+      shapes[0] = shapes[0].concat(newShapes);
+      shapes[0].splice(i--, 1);
+    }
+  }
+  return shapes;
 }
 
 Shape.contains = function(vertices, pos) {
