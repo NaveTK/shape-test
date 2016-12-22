@@ -42,7 +42,9 @@ function draw() {
   for( i = 0; i < this.debris.length; i++) {
     stroke(0, 100, 100);
     noFill();
-    this.debris[i].draw();
+    if (!this.debris[i].draw()) {
+      this.debris.splice(i--, 1);
+    }
   }
   
   push();
